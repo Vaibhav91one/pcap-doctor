@@ -41,7 +41,7 @@ per line with unset fields left out. Every table is also a query source: `pcap-d
 | `bittorrent` | BitTorrent DHT messages (query type — ping, find_node, get_peers, announce_peer — transaction id and, for get_peers/announce_peer, the info_hash as hex) and peer-wire handshakes (info_hash and peer-id version prefix), parsed from the bt-dht heuristic dissector and the handshake | `bt-dht` pass |
 | `device` | one row per sender MAC: OUI vendor, IPs seen, packet count (an extension; Zeek's known_devices is similar) | `device` pass |
 | `software` | versioned software from HTTP Server / User-Agent headers and SSH banners (Zeek software.log: HTTP::SERVER, HTTP::BROWSER, SSH::SERVER, SSH::CLIENT) | `software` pass |
-| `os` | passive OS-family guess per host from the initial TTL of its SYNs (p0f-style, TTL only: 64 Linux/Unix/Android/macOS, 128 Windows, 255 network device) | `os` pass |
+| `os` | passive OS guess per host: the initial-TTL family, a p0f-style `syn_signature` (TTL, DF, window, MSS, window scale, option order of the first SYN) and the `user_agent_os` an HTTP User-Agent claims (self-reported) | `os` pass |
 | `protocols` | protocol hierarchy breakdown: frames, bytes and share of frames per protocol layer (an extension, like `tshark -z io,phs` flattened) | `protocols` pass |
 | `syslog` | one row per syslog message over UDP/514, RFC 3164 and RFC 5424: facility, severity, version, timestamp text, hostname, app/tag, process id, message id and the message text (truncated to 200 chars) | `syslog` pass |
 | `capture_loss` | ACKs, gaps (segments after a mid-stream hole) and percent lost, like Zeek's capture_loss.log | `capture_loss` pass |
