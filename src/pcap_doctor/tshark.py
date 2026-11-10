@@ -13,6 +13,7 @@ pass name) so re-runs and test loops are cheap.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -20,6 +21,7 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import lru_cache
@@ -75,10 +77,8 @@ def worker_count(jobs: int | None, env: dict[str, str] | None = None) -> int:
 
 
 def _set_low_priority_posix() -> None:
-    try:
+    with contextlib.suppress(AttributeError, OSError):
         os.nice(10)
-    except (AttributeError, OSError):
-        pass
 
 
 def _low_priority_prefix() -> list[str]:
@@ -1784,7 +1784,7 @@ class TsharkRunner:
 
         first_line = first_line.rstrip("\r\n")
         if not first_line.strip():
-            lines = [first_line] + list(lines_iter)
+            lines = [first_line, *lines_iter]
             return TsharkRunner._parse("\n".join(lines), fields)
 
         header = first_line.split(TAB)
