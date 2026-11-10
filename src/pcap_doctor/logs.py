@@ -2125,6 +2125,43 @@ def _pgsql_log(ctx: _Ctx) -> LogTable:
     return table
 
 
+# --------------------------------------------------------------------------- MS-SQL (TDS)
+#: TDS PRELOGIN ENCRYPTION option values ([MS-TDS] 2.2.6.4): what the side offered or required (#231).
+_TDS_ENCRYPTION: dict[int, str] = {0: "ENCRYPT_OFF", 1: "ENCRYPT_ON", 2: "ENCRYPT_NOT_SUP", 3: "ENCRYPT_REQ"}
+_TDS_LOGIN7_TYPE = 16  # packet type 0x10
+
+
+def _tds_log(ctx: _Ctx) -> LogTable:
+    """MS-SQL pre-login encryption negotiation and Login7 user, client, application and server (#231).
+
+    The Login7 password is never written: the row says that one was sent and how long it is. Encrypted
+    logins (ENCRYPT_ON or ENCRYPT_REQ, TLS after the pre-login) do not dissect, so they produce no login row.
+    """
+    table = LogTable("tds", [
+        ("ts", "time"), *ID_COLS, ("msg_type", "string"), ("encryption", "string"), ("username", "string"),
+        ("client_name", "string"), ("app_name", "string"), ("server_name", "string"), ("password", "string")])
+    for row in ctx.runner.run("tds"):
+        key = ctx.row_key(row, "tcp")
+        if not key:
+            continue
+        ts = to_float(first(row, "frame.time_epoch"))
+        enc_val = to_int(first(row, "tds.prelogin.option.encryption"))
+        if enc_val is not None:
+            table.rows.append({
+                "ts": ts, **ctx.ids(key), "msg_type": "prelogin", "encryption": _TDS_ENCRYPTION.get(enc_val, f"unknown({enc_val})"),
+                "username": None, "client_name": None, "app_name": None, "server_name": None, "password": None})
+        elif to_int(first(row, "tds.type")) == _TDS_LOGIN7_TYPE:
+            password = first(row, "tds.7login.password")
+            table.rows.append({
+                "ts": ts, **ctx.ids(key), "msg_type": "login7", "encryption": None,
+                "username": first(row, "tds.7login.username") or None,
+                "client_name": first(row, "tds.7login.clientname") or None,
+                "app_name": first(row, "tds.7login.appname") or None,
+                "server_name": first(row, "tds.7login.servername") or None,
+                "password": f"<redacted {len(password)} chars>" if password else None})
+    return table
+
+
 # --------------------------------------------------------------------------- Redis (RESP)
 # Redis commands that take a key as the first argument (used to decide which bulk string is the key).
 _REDIS_KEY_ARG_COMMANDS = frozenset({
@@ -2233,7 +2270,7 @@ BUILDERS: dict[str, Callable[[_Ctx], LogTable]] = {
     "conn": _conn_log, "dns": _dns_log, "http": _http_log, "ssl": _ssl_log, "x509": _x509_log, "files": _files_log,
     "notice": _notice_log, "weird": _weird_log, "expert": _expert_log, "dhcp": _dhcp_log, "dhcpv6": _dhcpv6_log, "netbios": _netbios_log, "ftp": _ftp_log, "smtp": _smtp_log,
     "ssh": _ssh_log, "smb": _smb_log, "kerberos": _kerberos_log, "ntlm": _ntlm_log,
-    "modbus": _modbus_log, "dnp3": _dnp3_log, "pgsql": _pgsql_log, "redis": _redis_log, "mqtt": _mqtt_log, "enip": _enip_log, "iec104": _iec104_log, "bacnet": _bacnet_log, "s7comm": _s7comm_log, "opcua": _opcua_log, "tunnel": _tunnel_log, "radius": _radius_log, "stun": _stun_log, "rtsp": _rtsp_log, "bittorrent": _bittorrent_log, "syslog": _syslog_log,
+    "modbus": _modbus_log, "dnp3": _dnp3_log, "pgsql": _pgsql_log, "tds": _tds_log, "redis": _redis_log, "mqtt": _mqtt_log, "enip": _enip_log, "iec104": _iec104_log, "bacnet": _bacnet_log, "s7comm": _s7comm_log, "opcua": _opcua_log, "tunnel": _tunnel_log, "radius": _radius_log, "stun": _stun_log, "rtsp": _rtsp_log, "bittorrent": _bittorrent_log, "syslog": _syslog_log,
     "device": _device_log, "software": _software_log, "os": _os_log, "protocols": _protocols_log, "capture_loss": _capture_loss_log,
     "conversations": _conversations_log, "io": _io_log, "known_services": _known_services_log, "rdp": _rdp_log, "rfb": _rfb_log,
 }

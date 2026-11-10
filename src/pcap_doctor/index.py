@@ -124,6 +124,7 @@ PROTO_ALIASES: dict[str, str] = {
     "data": "data",
     "irc": "irc",
     "socks": "socks",
+    "tds": "tds",
 }
 
 SENSITIVE_SERVICES: dict[str, bool] = {
@@ -142,6 +143,7 @@ SENSITIVE_SERVICES: dict[str, bool] = {
     "http": True,
     "irc": True,
     "socks": True,
+    "tds": True,
 }
 
 WELL_KNOWN_PORTS: dict[int, str] = {
@@ -168,6 +170,7 @@ WELL_KNOWN_PORTS: dict[int, str] = {
     995: "pop3s",
     1080: "socks",
     1194: "openvpn",
+    1433: "mssql",
     1900: "ssdp",
     3306: "mysql",
     5432: "pgsql",
@@ -1460,7 +1463,7 @@ class TelnetLoginScanner:
 
 #: Service-detail fields that carry credentials in cleartext and must never
 #: reach a report verbatim. Values are replaced with a length-only placeholder.
-REDACTED_SERVICE_FIELDS: frozenset[str] = frozenset({"snmp.community", "mysql.query", "ldap.simple"})
+REDACTED_SERVICE_FIELDS: frozenset[str] = frozenset({"snmp.community", "mysql.query", "ldap.simple", "tds.7login.password"})
 
 
 def redact_auth(value: str) -> str:
