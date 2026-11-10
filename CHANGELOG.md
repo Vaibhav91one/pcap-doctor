@@ -16,6 +16,7 @@ All notable changes to this project are documented here. The format follows
   (`uses: doctor-labs/pcap-doctor@v...`). `PCAP_FORENSICS_CACHE` is still honoured.
 
 ### Added
+- Classtype vocabulary now matches Suricata etc/classification.config: `default-login-attempt` and `non-standard-protocol` added, `SERVICE_ON_ODD_PORT` maps to `non-standard-protocol`, and JSON findings carry `classtype_priority` (the Suricata priority). Checked against the upstream lines in `tests/test_classtype.py` (#241).
 - Kerberos and NTLM findings (part of #205), detector `d23.kerberos_ntlm` (category Credentials): `KERBEROS_WEAK_ETYPE` (DES in a reply: high; RC4-HMAC: medium), `KERBEROS_NO_PREAUTH` (AS reply to a request with no pre-authentication that the KDC never asked for), `NTLM_V1_AUTH` (24-byte NTLMv1 response), `NTLM_SIGNING_NOT_NEGOTIATED` (CHALLENGE without the sign flag). Metadata only: no tickets, hashes, responses or ciphertext. Core wiring: `index.kerberos` / `index.ntlm` fed by the existing `kerberos` and `ntlm` passes (new fields `kerberos.padata_type`, `ntlmssp.negotiateflags`, `ntlmssp.blob.length`).
 - pcap-doctor tabs --filter TEXT (#252): narrows the host, file and credential tabs to the rows with TEXT in any column (case-insensitive). Display only; the capture is read once, as before. The interactive TUI part of #252 is not done: it needs a TUI library, so it waits for a dependency decision.
 
