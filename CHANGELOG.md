@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 - Watched-country login alerts (d24.watched_country_login, #238): `analyze --watch-country CC` (repeatable) reports `WATCHED_COUNTRY_LOGIN` for HTTP, Telnet, FTP, POP3, IMAP and SMTP logins whose client the local `--geoip-db` places in that country. Offline; the `--ioc` file already serves as the local blocklist (IPs, CIDRs, domains).
+- Passive OS fingerprinting (#244): `os.log` adds `syn_signature`, a p0f-style label matched on the first SYN's TTL, DF bit, window, MSS, window scale and option order (ten entries from the p0f v3 `[tcp:request]` table, cited in `src/pcap_doctor/osfp.py`), and `user_agent_os`, the OS family an HTTP User-Agent claims. The User-Agent value is self-reported.
 - Added the ICS_CONTROL_COMMAND detector (d20.ics_control): cleartext Modbus write, DNP3 control, S7comm Write Var and IEC 60870-5-104 command activations (#206).
 - MS-SQL TDS (#231): `tds.log` records the pre-login encryption negotiation and the Login7 user, client, application and server names. A Login7 password sent without encryption is a `CLEARTEXT_CREDENTIAL` (critical), reported as present with its length only; TLS-wrapped logins produce no finding.
 

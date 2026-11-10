@@ -23,8 +23,9 @@ from pathlib import Path
 from typing import Any
 
 from .data_ciphers import registry
-from .index import CaptureIndex, first, many
+from .index import WELL_KNOWN_PORTS, CaptureIndex, first, many
 from .models import flow_key, stable_id
+from .osfp import match_syn, parse_syn_options, user_agent_os
 from .prompts import clean_capture_text
 from .smb import unc, unescape
 from .tshark import CHECKSUM_ARGS, Row, to_bool01, to_float, to_int, to_int_auto
@@ -1710,14 +1711,42 @@ _OS_GUESS = {
 }
 
 
+def _syn_signature(row: Any, initial: int, window: int | None) -> str | None:
+    """p0f-style label of a SYN from its TTL, DF bit, window and TCP options (#244); None when the options are absent."""
+    raw = first(row, "tcp.options")
+    if window is None or not raw:
+        return None
+    try:
+        data = bytes.fromhex(raw)
+    except ValueError:
+        return None
+    layout, mss, wscale = parse_syn_options(data)
+    return match_syn(initial, first(row, "ip.flags.df") in ("1", "True"), window, mss, wscale, layout)
+
+
+def _ua_by_client(index: CaptureIndex) -> dict[str, str]:
+    """First OS family a client's User-Agent claims (#244). The client is the endpoint not on the service port."""
+    out: dict[str, str] = {}
+    for exch in index.http:
+        family = user_agent_os(exch.user_agent)
+        flow = index.flows.get(exch.key)
+        if family is None or flow is None:
+            continue
+        client = flow.endpoint_b if flow.port_a in WELL_KNOWN_PORTS else flow.endpoint_a
+        out.setdefault(client, family)
+    return out
+
+
 def _os_log(ctx: _Ctx) -> LogTable:
     """Zeek-style passive OS guess: one row per host, from the initial TTL of its SYNs (issue #244)."""
     table = LogTable("os", [
         ("ts", "time"), ("host", "addr"), ("ttl", "count"), ("initial_ttl", "count"),
         ("hops", "count"), ("os_guess", "string"), ("window", "count"), ("syns", "count"),
+        ("syn_signature", "string"), ("user_agent_os", "string"),
     ])
     # host -> {"ts", "ttl", "initial_ttl", "hops", "os_guess", "window", "syns"}
     seen: dict[str, dict[str, Any]] = {}
+    ua_by_host = _ua_by_client(ctx.index)
     for row in ctx.runner.run("os"):
         host = first(row, "ip.src")
         if not host:
@@ -1734,7 +1763,7 @@ def _os_log(ctx: _Ctx) -> LogTable:
                 "ts": ts, "ttl": ttl, "initial_ttl": initial,
                 "hops": initial - ttl,
                 "os_guess": _OS_GUESS[initial],
-                "window": window, "syns": 1,
+                "window": window, "syns": 1, "syn_signature": _syn_signature(row, initial, window),
             }
             seen[host] = info
         else:
@@ -1745,6 +1774,7 @@ def _os_log(ctx: _Ctx) -> LogTable:
             "ts": info["ts"], "host": host, "ttl": info["ttl"],
             "initial_ttl": info["initial_ttl"], "hops": info["hops"],
             "os_guess": info["os_guess"], "window": info["window"], "syns": info["syns"],
+            "syn_signature": info["syn_signature"], "user_agent_os": ua_by_host.get(host),
         })
     return table
 

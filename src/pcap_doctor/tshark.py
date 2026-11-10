@@ -808,7 +808,7 @@ SOFTWARE_PASS = PassSpec(
 OS_PASS = PassSpec(
     name="os",
     display_filter="tcp.flags.syn == 1 && tcp.flags.ack == 0",
-    fields=("frame.time_epoch", "ip.src", "ip.ttl", "tcp.window_size_value"),
+    fields=("frame.time_epoch", "ip.src", "ip.ttl", "ip.flags.df", "tcp.window_size_value", "tcp.options"),
 )
 
 ARP_ICMP_PASS = PassSpec(

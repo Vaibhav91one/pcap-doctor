@@ -1714,6 +1714,36 @@ def fixture_watched_login() -> bytes:
     return w.write()
 
 
+# Passive OS fingerprinting: SYN signatures and User-Agent (os.log, #244)
+# --------------------------------------------------------------------------
+
+@fixture("os_syn_signatures.pcap")
+def fixture_os_syn_signatures() -> bytes:
+    """Three SYNs whose options follow p0f v3 request signatures: Linux 3.11+ (MSS 1460, SACK-permitted,
+    timestamps, NOP, window scale 7, window 20 x MSS), Windows 7 or 8 (no window scale, window 8192) and
+    macOS 10.9+ (window scale 4, window 65535, EOL padding). The Linux client then sends an HTTP request whose
+    User-Agent names Linux, so os.log carries both the signature and the UA family (#244)."""
+    w = Wire(start=1_702_000_000.0)
+    server = "10.40.0.9"
+
+    def syn(src: str, sport: int, ttl: int, window: int, options: bytes) -> None:
+        seg = tcp_segment(src, server, sport, 80, 1000, 0, 0x02, window=window, options=options)
+        w.add(ether(MAC_A, MAC_B, ip_packet(src, server, 6, seg, ttl=ttl)))
+
+    linux = bytes([2, 4, 0x05, 0xB4, 4, 2, 8, 10]) + struct.pack(">II", 1, 0) + bytes([1, 3, 3, 7])
+    windows = bytes([2, 4, 0x05, 0xB4, 1, 1, 4, 2])
+    macos = (bytes([2, 4, 0x05, 0xB4, 1, 3, 3, 4, 1, 1, 8, 10]) + struct.pack(">II", 1, 0)
+             + bytes([4, 2, 0, 0]))
+    syn("10.40.0.1", 40001, 64, 29200, linux)
+    syn("10.40.0.2", 40002, 128, 8192, windows)
+    syn("10.40.0.3", 40003, 64, 65535, macos)
+    t = Tcp(w, "10.40.0.1", server, 40010, 80).open()
+    t.send(True, b"GET / HTTP/1.1\r\nHost: intranet.example\r\nUser-Agent: Mozilla/5.0 (X11; Linux x86_64) Firefox/120.0\r\n\r\n")
+    t.send(False, b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+    t.close()
+    return w.write()
+
+
 @fixture("rfb_vnc.pcap")
 def fixture_rfb_vnc() -> bytes:
     """A complete RFB/VNC handshake: version 3.8, server offers None (1) + VNC (2) auth,
