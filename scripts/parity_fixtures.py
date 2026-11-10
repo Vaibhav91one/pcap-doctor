@@ -1691,6 +1691,29 @@ def fixture_mssql_tds() -> bytes:
     return w.write()
 
 
+# Logins from watched countries (d24, #238)
+# --------------------------------------------------------------------------
+
+@fixture("watched_login.pcap")
+def fixture_watched_login() -> bytes:
+    """An FTP login (PASS) from 198.51.100.7 and an HTTP Basic login from the private client 10.30.0.9. The test
+    maps the first to a watched country and the second to another; both credentials cross the wire in cleartext (#238)."""
+    w = Wire(start=1_702_000_000.0)
+    server = "10.30.0.5"
+    t = Tcp(w, "198.51.100.7", server, 52100, 21).open()
+    t.send(False, b"220 ftp ready\r\n")
+    t.send(True, b"USER alice\r\n")
+    t.send(False, b"331 password required\r\n")
+    t.send(True, b"PASS hunter2\r\n")
+    t.send(False, b"230 logged in\r\n")
+    t.close()
+    t = Tcp(w, "10.30.0.9", server, 52101, 80).open()
+    t.send(True, b"GET /admin HTTP/1.1\r\nHost: intranet.example\r\nAuthorization: Basic YWxpY2U6aHVudGVyMg==\r\n\r\n")
+    t.send(False, b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+    t.close()
+    return w.write()
+
+
 @fixture("rfb_vnc.pcap")
 def fixture_rfb_vnc() -> bytes:
     """A complete RFB/VNC handshake: version 3.8, server offers None (1) + VNC (2) auth,

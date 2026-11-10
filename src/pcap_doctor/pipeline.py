@@ -103,6 +103,7 @@ def analyze(
     fast: bool = False,
     jobs: int | None = None,
     geoip: GeoIpDb | None = None,
+    watch_countries: tuple[str, ...] = (),
 ) -> RunResult:
     policy.validate(only=only, categories=categories, min_severity=min_severity)
     pcap = Path(pcap)
@@ -153,6 +154,10 @@ def analyze(
         index.signature_hits = match(index, rules)
         index.add_note(f"[signatures] {len(rules)} rule(s) loaded, {len(index.signature_hits)} match(es)")
 
+    index.geoip = geoip
+    index.watch_countries = frozenset(c.strip().upper() for c in watch_countries if c.strip())
+    if index.watch_countries and geoip is None:
+        index.add_note("[geo] --watch-country needs --geoip-db; no login can be judged by country")
     if iocs:
         from .ioc import load_hash_iocs, load_iocs, match_file_hashes, match_iocs
 

@@ -361,6 +361,8 @@ class CaptureIndex:
         self.ntlm: list[NtlmMsg] = []  # NTLMSSP messages from the ntlm pass (#205)
         self.signature_hits: list[SignatureHit] = []  # filled by the pipeline when --signatures is given (#201)
         self.ioc_hits: list[IocHit] = []  # filled by the pipeline when --ioc is given (#236)
+        self.watch_countries: frozenset[str] = frozenset()  # set by the pipeline from --watch-country (#238)
+        self.geoip: GeoIpDb | None = None  # the --geoip-db the pipeline loaded, for detectors (#238)
         self.firmware_keys: dict[str, str] = {}  # {cert SPKI fingerprint: firmware path} supplied via --firmware
         self.cert_der: dict[str, bytes] = {}  # {sha256(DER): DER} for certificate export (#212)
         self.dropped_fields: list[str] = []

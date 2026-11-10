@@ -116,6 +116,10 @@ def analyze_cmd(
         None, "--geoip-db", exists=True, dir_okay=False, envvar="PCAP_DOCTOR_GEOIP_DB",
         help="local GeoIP CSV (network,asn,as_name,country) that fills each host's ASN/country; never fetched",
     ),
+    watch_country: list[str] = typer.Option(
+        None, "--watch-country",
+        help="ISO country code: report logins from it, as judged by --geoip-db (repeatable, e.g. RU)",
+    ),
     safe: bool = typer.Option(
         False, "--safe", help="launch AI agents with their approval prompts (also PCAP_DOCTOR_HANDOFF_SAFE=1)"
     ),
@@ -196,6 +200,7 @@ def analyze_cmd(
                 fast=fast,
                 jobs=jobs,
                 geoip=geoip,
+                watch_countries=tuple(watch_country or ()),
                 progress=None,
                 on_event=on_event,
             )
