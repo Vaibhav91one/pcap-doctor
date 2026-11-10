@@ -149,12 +149,19 @@ def category_of(code: str) -> str:
     return rule.category if rule else "Other"
 
 
-#: Suricata-style classtype vocabulary (Suricata ``classification.config``), shown next to the existing
-#: fields in the JSON and EVE outputs (issue #241).
-CLASS_TYPES: tuple[str, ...] = (
-    "attempted-recon", "trojan-activity", "policy-violation", "protocol-command-decode",
-    "misc-activity", "attempted-admin",
-)
+#: Suricata-style classtype vocabulary, name -> priority, copied from the config classification lines of
+#: Suricata etc/classification.config (OISF/suricata). Shown next to the existing fields in the JSON and
+#: EVE outputs (issue #241). No detector maps a code to default-login-attempt yet.
+CLASS_TYPES: dict[str, int] = {
+    "attempted-recon": 2,
+    "trojan-activity": 1,
+    "policy-violation": 1,
+    "protocol-command-decode": 3,
+    "misc-activity": 3,
+    "attempted-admin": 1,
+    "default-login-attempt": 2,
+    "non-standard-protocol": 2,
+}
 DEFAULT_CLASSTYPE = "misc-activity"
 
 #: One mapping table keyed by exact code; codes missing from it take the ``misc-activity`` default.
@@ -218,6 +225,7 @@ _CLASSTYPES: dict[str, str] = {
     "TLS_SNI_CERT_MISMATCH": "protocol-command-decode",
     "SMB1_IN_USE": "protocol-command-decode",
     "SMB_EXECUTABLE_ON_SHARE": "protocol-command-decode",
+    "SERVICE_ON_ODD_PORT": "non-standard-protocol",
 }
 
 
