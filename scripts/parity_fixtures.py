@@ -1621,6 +1621,76 @@ def fixture_irc_socks_creds() -> bytes:
     return w.write()
 
 
+# --------------------------------------------------------------------------
+# MS-SQL TDS (tds.log; CLEARTEXT_CREDENTIAL for a Login7 password) (#231)
+# --------------------------------------------------------------------------
+
+def _tds_obfuscate(password: str) -> bytes:
+    """Login7 password bytes per [MS-TDS] 2.2.6.4: UTF-16LE, each byte nibble-swapped, then XOR 0xA5."""
+    return bytes((((b << 4) | (b >> 4)) & 0xFF) ^ 0xA5 for b in password.encode("utf-16-le"))
+
+
+def _tds_packet(ptype: int, payload: bytes) -> bytes:
+    """TDS packet header (8 bytes, big-endian length including the header), status EOM, SPID 0, packet id 1."""
+    return struct.pack(">BBHHBB", ptype, 0x01, 8 + len(payload), 0, 1, 0) + payload
+
+
+def _tds_prelogin(options: list[tuple[int, bytes]]) -> bytes:
+    """PRELOGIN option table (token, offset, length, all big-endian), 0xFF terminator, then the option data."""
+    head, data = b"", b""
+    offset = 5 * len(options) + 1
+    for token, value in options:
+        head += struct.pack(">BHH", token, offset, len(value))
+        data += value
+        offset += len(value)
+    return head + b"\xff" + data
+
+
+def _tds_login7(*, hostname: str, username: str, password: str, appname: str, servername: str,
+                database: str) -> bytes:
+    """Login7 message (MS-TDS 2.2.6.4). Fixed header 36 bytes, nine (ib, cch) pairs for HostName..Database,
+    then ClientID (6), SSPI, AtchDBFile, ChangePassword (each ib/cb) and cbSSPILong: 94 bytes in all.
+    Offsets are from the start of the Login7 message; the strings are UTF-16LE."""
+    values = [
+        hostname.encode("utf-16-le"), username.encode("utf-16-le"), _tds_obfuscate(password),
+        appname.encode("utf-16-le"), servername.encode("utf-16-le"),
+        b"", b"", b"", database.encode("utf-16-le"),  # Extension, CltIntName, Language: unused
+    ]
+    fixed = struct.pack("<IIIIIIBBBBiI", 0, 0x74000004, 4096, 0x07000000, 4321, 0, 0xE0, 0x03, 0, 0, 0, 0x0409)
+    pairs, data, offset = b"", b"", 94
+    for value in values:
+        pairs += struct.pack("<HH", offset, len(value) // 2)  # cch is a character count
+        data += value
+        offset += len(value)
+    tail = b"\x00" * 6 + struct.pack("<HHHHHHI", 0, 0, 0, 0, 0, 0, 0)
+    body = fixed + pairs + tail + data
+    return struct.pack("<I", len(body)) + body[4:]
+
+
+@fixture("mssql_tds.pcap")
+def fixture_mssql_tds() -> bytes:
+    """MS-SQL over TDS on TCP 1433: a pre-login that negotiates ENCRYPT_NOT_SUP with a Login7 whose password
+    is obfuscated per [MS-TDS] (a cleartext credential), and a second connection that negotiates
+    ENCRYPT_REQ and carries no cleartext login (#231)."""
+    w = Wire(start=1_702_000_000.0)
+    c, s = "10.20.0.10", "10.20.0.20"
+    version = (0x00, bytes([15, 0, 0x07, 0xD0, 0x00, 0x05]))  # SQL Server 2019, 15.0.2000.5
+    t = Tcp(w, c, s, 49830, 1433).open()
+    t.send(True, _tds_packet(0x12, _tds_prelogin([version, (0x01, b"\x02"), (0x02, b"\x00")])))  # ENCRYPT_NOT_SUP
+    t.send(False, _tds_packet(0x04, _tds_prelogin([version, (0x01, b"\x02"), (0x02, b"\x00")])))
+    login = _tds_login7(hostname="WORKSTATION", username="sa", password="Passw0rd!",
+                        appname="pcap-test", servername="SQLHOST", database="master")
+    t.send(True, _tds_packet(0x10, login))
+    t.send(False, _tds_packet(0x04, struct.pack("<BHHQ", 0xFD, 0, 0, 0)))  # DONE token
+    t.close()
+    t = Tcp(w, c, s, 49831, 1433).open()
+    t.send(True, _tds_packet(0x12, _tds_prelogin([version, (0x01, b"\x03"), (0x02, b"\x00")])))  # ENCRYPT_REQ
+    t.send(False, _tds_packet(0x04, _tds_prelogin([version, (0x01, b"\x03"), (0x02, b"\x00")])))
+    t.send(True, b"\x17\x03\x03\x00\x20" + bytes(range(32)))  # opaque TLS application-data record
+    t.close()
+    return w.write()
+
+
 @fixture("rfb_vnc.pcap")
 def fixture_rfb_vnc() -> bytes:
     """A complete RFB/VNC handshake: version 3.8, server offers None (1) + VNC (2) auth,

@@ -50,7 +50,7 @@ class TransportExposureDetector(Detector):
     category: ClassVar[str] = "cleartext"
     description: ClassVar[str] = (
         "Finds credentials and sensitive state sent without TLS: plain HTTP, HTTP Basic/Digest auth, "
-        "insecure cookies, FTP/Telnet/SNMP/LDAP/Redis/MySQL, scan-shaped TCP patterns."
+        "insecure cookies, FTP/Telnet/SNMP/LDAP/Redis/MySQL/MS-SQL, scan-shaped TCP patterns."
     )
 
     def detect(self, index: CaptureIndex) -> list[Finding]:
@@ -234,7 +234,7 @@ class TransportExposureDetector(Detector):
                 self.finding(
                     code="CLEARTEXT_SERVICE",
                     title=f"{protocol.upper()} traffic in cleartext on ports {ports}",
-                    severity="high" if protocol in {"ftp", "telnet", "ldap", "redis", "mysql"} else "medium",
+                    severity="high" if protocol in {"ftp", "telnet", "ldap", "redis", "mysql", "tds"} else "medium",
                     confidence="high",
                     summary=(
                         f"{len(hits)} {protocol} message(s) observed in cleartext between "
@@ -263,6 +263,7 @@ class TransportExposureDetector(Detector):
             "irc.request.command_parameter": "IRC credential",
             "socks.username": "SOCKS5 username",
             "socks.password": "SOCKS5 password",
+            "tds.7login.password": "TDS login password",
         }
         out: list[Finding] = []
         seen_creds: set[tuple[str, str, str]] = set()
@@ -275,7 +276,7 @@ class TransportExposureDetector(Detector):
             command = (fields.get("ftp.request.command") or "").upper()
             irc_cmd = (fields.get("irc.request.command") or "").upper()
             irc_param = (fields.get("irc.request.command_parameter") or "").lower()
-            for field in ("snmp.community", "ldap.simple", "mysql.query", "ftp.request.arg", "irc.request.command_parameter", "socks.username", "socks.password"):
+            for field in ("snmp.community", "ldap.simple", "mysql.query", "ftp.request.arg", "irc.request.command_parameter", "socks.username", "socks.password", "tds.7login.password"):
                 if field == "ftp.request.arg" and command != "PASS":
                     continue
                 # IRC: only PASS and PRIVMSG commands with parameter are credentials

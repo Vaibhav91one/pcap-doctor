@@ -470,6 +470,8 @@ SERVICE_FIELDS: tuple[str, ...] = (
     "irc.request.command_parameter",
     "socks.username",
     "socks.password",
+    "tds.7login.username",
+    "tds.7login.password",
 )
 
 #: 220 greeting text (#235): read by the index for banner inventory, never shown as a service detail
@@ -477,7 +479,7 @@ GREETING_FIELDS: tuple[str, ...] = ("smtp.response.code", "smtp.rsp.parameter", 
 
 SERVICE_PASS = PassSpec(
     name="services",
-    display_filter="ntp || tftp || ftp || ftp-data || telnet || snmp || ldap || smtp || imap || pop || resp || mysql || irc || socks",
+    display_filter="ntp || tftp || ftp || ftp-data || telnet || snmp || ldap || smtp || imap || pop || resp || mysql || irc || socks || tds",
     fields=with_addr(("tcp.srcport", "tcp.dstport", "udp.srcport", "udp.dstport", *SERVICE_FIELDS, *GREETING_FIELDS)),
 )
 
@@ -889,6 +891,16 @@ PGSQL_PASS = PassSpec(
                       "pgsql.authtype", "pgsql.query")),
 )
 
+#: MS-SQL TDS (#231) for tds.log and the Login7 credential: pre-login encryption negotiation and the Login7
+#: user, client, application and server names. The Login7 password is read only so its length can be reported.
+TDS_PASS = PassSpec(
+    name="tds",
+    display_filter="tds",
+    fields=with_addr(("frame.time_epoch", "tcp.srcport", "tcp.dstport", "tds.type",
+                      "tds.prelogin.option.encryption", "tds.7login.username", "tds.7login.clientname",
+                      "tds.7login.appname", "tds.7login.servername", "tds.7login.password")),
+)
+
 #: Redis RESP protocol for redis.log (#225): raw TCP payload, parsed to extract the command name
 #: and key. Passwords (AUTH argument) and command arguments are never logged.
 RESP_PASS = PassSpec(
@@ -1183,6 +1195,7 @@ PASSES: dict[str, PassSpec] = {
         MODBUS_PASS,
         DNP3_PASS,
         PGSQL_PASS,
+        TDS_PASS,
         RESP_PASS,
         VNC_PASS,
         STUN_PASS,
@@ -1881,6 +1894,7 @@ class TsharkRunner:
                     "mysql",
                     "irc",
                     "socks",
+                    "tds",
                     "telnet",
                 )
             )
